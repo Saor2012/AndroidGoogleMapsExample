@@ -1,11 +1,8 @@
 package com.example.androidgooglemapsexample;
 
 import androidx.annotation.NonNull;
-import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-import androidx.databinding.DataBindingUtil;
-import androidx.databinding.ViewDataBinding;
 
 import android.Manifest;
 import android.content.Intent;
@@ -13,14 +10,11 @@ import android.content.pm.PackageManager;
 import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
-import android.os.Bundle;
 import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
-import android.widget.Button;
-import android.widget.EditText;
-import android.widget.ImageView;
 import android.widget.Toast;
 
+import com.example.androidgooglemapsexample.databinding.ActivityMapsBinding;
 import com.facebook.CallbackManager;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
@@ -40,7 +34,9 @@ import java.util.List;
 
 import timber.log.Timber;
 
-public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback, GoogleMap.OnMarkerClickListener {
+public class MapsActivity extends BaseActivity<ActivityMapsBinding> implements OnMapReadyCallback, GoogleMap.OnMarkerClickListener, IMapsPresenter.View {
+
+    private IMapsPresenter.Presenter presenter;
 
     private Boolean isLocationPermissionGranted = false;
     //    private LocationListener locationListener;
@@ -57,7 +53,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private Marker mPost1;
     private Marker mPost2;
     private GoogleMap mMap;
-    private ViewDataBinding binding;
 
     private FusedLocationProviderClient fusedLocationProviderClient;
 
@@ -67,19 +62,15 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private CallbackManager callbackManager;
 
-    private Button loginButton;
-    private EditText searchEditText;
-    private ImageView gpsImageView;
-
     public MapsActivity() {}
-/*
+    /*
 * Прокласти маршрут за точками, тощо.
 * Створити базу даних, що перехоплювати точки на мапі та розмалювувати їх, тобто зберігати остані значення координа.
 * Якщо до БД щось додалося, тоді відобразити їх.
 * Організувати роботу маршруту.
 * https://aqicn.org/faq/2015-09-18/map-web-service-real-time-air-quality-tile-api/ru/ додати зв'язок з показниками
 * */
-    @Override
+    /*@Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         binding = DataBindingUtil.setContentView(this, R.layout.activity_maps);
@@ -146,6 +137,37 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 //        boolean isLoggedIn = accessToken != null && !accessToken.isExpired();
 //        Timber.e("isLoggedIn = %s", isLoggedIn);
 
+    }*/
+
+    @Override
+    protected void initView() {
+        presenter = new MapsPresenter();
+        initMap();
+        getLocationPermission();
+        init();
+    }
+
+    @Override
+    protected int getLayoutRes() {
+        return R.layout.activity_maps;
+    }
+
+    @Override
+    protected void onStartView() {
+        presenter.startView(this);
+    }
+
+    @Override
+    protected void onDestroyView() {
+        if (presenter != null) {
+            presenter.stopView();
+            presenter = null;
+        }
+    }
+
+    @Override
+    protected BasePresenter getPresenter() {
+        return presenter;
     }
 
     /**
@@ -159,13 +181,13 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
      */
 
     private void init() {
-        searchEditText.setOnEditorActionListener((v, actionId, event) -> {
+        getBinding().editTextSearch.setOnEditorActionListener((v, actionId, event) -> {
            if (actionId == EditorInfo.IME_ACTION_SEARCH || actionId == EditorInfo.IME_ACTION_DONE || event.getAction() == event.ACTION_DOWN || event.getAction() == event.KEYCODE_ENTER) {
                 getLocate();
            }
             return false;
         });
-        gpsImageView.setOnClickListener(v -> {
+        getBinding().icGps.setOnClickListener(v -> {
             getDeviceLocation();
         });
         hideSoftKeyboard();
@@ -180,8 +202,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     @Override
     public void onMapReady(GoogleMap googleMap) {
-        if (googleMap != null) {
-            Toast.makeText(this, "Map is ready", Toast.LENGTH_SHORT).show();
+        if (googleMap == null) {
+            Toast.makeText(this, "Map is null", Toast.LENGTH_SHORT).show();
+            return;
         }
         mMap = googleMap;
 
@@ -286,9 +309,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             clickCount = clickCount + 1;
             marker.setTag(clickCount);
             Toast.makeText(this,
-                    marker.getTitle() +
-                            " has been clicked " + clickCount + " times.",
-                    Toast.LENGTH_SHORT).show();
+                marker.getTitle() + " has been clicked " + clickCount + " times.",
+                Toast.LENGTH_SHORT).show();
         }
 
         // Return false to indicate that we have not consumed the event and that we wish
@@ -299,7 +321,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private void initMap() {
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
-        mapFragment.getMapAsync(MapsActivity.this);
+        if (mapFragment != null){
+            mapFragment.getMapAsync(MapsActivity.this);
+        } else {
+            Timber.tag(TAG).e(": initMap() - map fragment is null");
+        }
     }
 
     private void getLocationPermission() {
@@ -308,7 +334,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         if(ContextCompat.checkSelfPermission(this.getApplicationContext(), FINE_LOCATION )== PackageManager.PERMISSION_GRANTED) {
             if(ContextCompat.checkSelfPermission(this.getApplicationContext(), COARSE_LOCATION)== PackageManager.PERMISSION_GRANTED) {
                 isLocationPermissionGranted = true;
-                initMap();
             } else {
                 ActivityCompat.requestPermissions(this, permissions, LOCATION_PERMISSION_REQUEST_CODE);
             }
@@ -339,35 +364,37 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private void getDeviceLocation() {
         fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
         try {
-            if (fusedLocationProviderClient != null) {
-                Task<Location> taskLocation = fusedLocationProviderClient.getLastLocation();
-                taskLocation.addOnCompleteListener(task -> {
-                    if (task.isSuccessful()) {
-                        Location currentLocation = (Location) task.getResult();
+            Task<Location> taskLocation = fusedLocationProviderClient.getLastLocation();
+            taskLocation.addOnCompleteListener(task -> {
+                if (task.isSuccessful()) {
+                    Location currentLocation = (Location) task.getResult();
+                    if (currentLocation != null) {
                         noveCameraToDevice(new LatLng(currentLocation.getLatitude(), currentLocation.getLongitude()), DEFAULT_MAP_ZOOM, "My location");
                     } else {
-                        Toast.makeText(MapsActivity.this, "Unable to get current location", Toast.LENGTH_SHORT).show();
+                        Timber.tag(TAG).e(": getDeviceLocation() - device location is null");
                     }
-                });
-            }
+                } else {
+                    Toast.makeText(MapsActivity.this, "Unable to get current location", Toast.LENGTH_SHORT).show();
+                }
+            });
         } catch (SecurityException e) {
-            Timber.e(TAG + ": getDeviceLocation() - %s", e.getMessage());
+            Timber.tag(TAG).e(": getDeviceLocation() - %s", e.getMessage());
         }
     }
 
     private void getLocate() {
-        String searchString = searchEditText.getText().toString();
+        String searchString = getBinding().editTextSearch.getText().toString();
         Geocoder geocoder = new Geocoder(MapsActivity.this);
         List<Address> list = new ArrayList<>();
         try {
             list = geocoder.getFromLocationName(searchString, 1);
         } catch (IOException e) {
-            Timber.e(TAG + ": getLocate() - %s", e.getMessage());
+            Timber.tag(TAG).e(": getLocate() - %s", e.getMessage());
         }
 
         if (list.size() > 0) {
             Address address = list.get(0);
-            Timber.e(TAG + ": getLocate() - %s", address.toString());
+            Timber.tag(TAG).e( ": getLocate() - %s", address.toString());
             noveCameraToDevice(new LatLng(address.getLatitude(), address.getLongitude()), DEFAULT_MAP_ZOOM, address.getAddressLine(0));
         }
     }
