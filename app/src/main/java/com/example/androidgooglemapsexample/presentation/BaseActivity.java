@@ -1,4 +1,4 @@
-package com.example.androidgooglemapsexample;
+package com.example.androidgooglemapsexample.presentation;
 
 import android.os.Bundle;
 import android.widget.Toast;

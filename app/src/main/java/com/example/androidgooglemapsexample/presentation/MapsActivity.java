@@ -1,4 +1,4 @@
-package com.example.androidgooglemapsexample;
+package com.example.androidgooglemapsexample.presentation;
 
 import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
@@ -10,10 +10,12 @@ import android.content.pm.PackageManager;
 import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
+import android.view.View;
 import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 import android.widget.Toast;
 
+import com.example.androidgooglemapsexample.R;
 import com.example.androidgooglemapsexample.databinding.ActivityMapsBinding;
 import com.facebook.CallbackManager;
 import com.google.android.gms.location.FusedLocationProviderClient;
@@ -54,7 +56,7 @@ public class MapsActivity extends BaseActivity<ActivityMapsBinding> implements O
     private Marker mPost2;
     private GoogleMap mMap;
 
-    private FusedLocationProviderClient fusedLocationProviderClient;
+    private FusedLocationProviderClient fusedLocationProviderClient = null;
 
     private static final float DEFAULT_MAP_ZOOM = 15f;
 
@@ -183,12 +185,19 @@ public class MapsActivity extends BaseActivity<ActivityMapsBinding> implements O
     private void init() {
         getBinding().editTextSearch.setOnEditorActionListener((v, actionId, event) -> {
            if (actionId == EditorInfo.IME_ACTION_SEARCH || actionId == EditorInfo.IME_ACTION_DONE || event.getAction() == event.ACTION_DOWN || event.getAction() == event.KEYCODE_ENTER) {
-                getLocate();
+               Timber.e("On edit");
+               getLocate();
            }
             return false;
         });
         getBinding().icGps.setOnClickListener(v -> {
             getDeviceLocation();
+        });
+        getBinding().imageViewSearch.setOnClickListener(v -> {
+            if (!getBinding().editTextSearch.getText().toString().equals("") || !getBinding().editTextSearch.getText().toString().equals("My location")) {
+                Timber.e("On search");
+                getLocate();
+            }
         });
         hideSoftKeyboard();
     }
@@ -224,7 +233,7 @@ public class MapsActivity extends BaseActivity<ActivityMapsBinding> implements O
                 return;
             }
             mMap.setMyLocationEnabled(true);
-//            mMap.getUiSettings().setMyLocationButtonEnabled(false); //Disable UI buttons
+            mMap.getUiSettings().setMyLocationButtonEnabled(false); //Disable UI buttons
         }
 //        String url = getURL(mPost1.getPosition(), mPost2.getPosition(), "driving");
 

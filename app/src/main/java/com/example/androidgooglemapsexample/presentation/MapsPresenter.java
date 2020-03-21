@@ -1,4 +1,4 @@
-package com.example.androidgooglemapsexample;
+package com.example.androidgooglemapsexample.presentation;
 
 public class MapsPresenter implements IMapsPresenter.Presenter {
     private IMapsPresenter.View view;
