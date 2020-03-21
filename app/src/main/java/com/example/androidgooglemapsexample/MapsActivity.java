@@ -1,17 +1,29 @@
 package com.example.androidgooglemapsexample;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.content.res.FontResourcesParserCompat;
-import androidx.fragment.app.FragmentActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import androidx.databinding.DataBindingUtil;
+import androidx.databinding.ViewDataBinding;
 
-import android.content.Context;
-import android.graphics.Color;
-import android.location.LocationListener;
-import android.location.LocationManager;
+import android.Manifest;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.location.Address;
+import android.location.Geocoder;
+import android.location.Location;
 import android.os.Bundle;
-import android.util.Log;
+import android.view.WindowManager;
+import android.view.inputmethod.EditorInfo;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.Toast;
 
+import com.facebook.CallbackManager;
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
@@ -19,32 +31,45 @@ import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
-import com.google.android.gms.maps.model.PolylineOptions;
-import com.google.maps.DirectionsApi;
-import com.google.maps.DirectionsApiRequest;
+import com.google.android.gms.tasks.Task;
 import com.google.maps.GeoApiContext;
-import com.google.maps.model.DirectionsLeg;
-import com.google.maps.model.DirectionsRoute;
-import com.google.maps.model.DirectionsStep;
-import com.google.maps.model.EncodedPolyline;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 import timber.log.Timber;
 
 public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback, GoogleMap.OnMarkerClickListener {
-//    private LocationListener locationListener;
+
+    private Boolean isLocationPermissionGranted = false;
+    //    private LocationListener locationListener;
 //    private LocationManager locationManager;
 //    private Context appContext = getApplicationContext();
 //    private final int REQUEST_CODE = 101;
+    private static final String FINE_LOCATION = Manifest.permission.ACCESS_FINE_LOCATION;
+    private static final String COARSE_LOCATION = Manifest.permission.ACCESS_COARSE_LOCATION;
+    private static final int LOCATION_PERMISSION_REQUEST_CODE = 1234;
+
     private static final String TAG = "MapsActivity";
     private static final LatLng Post1 = new LatLng(48.527657,35.015481);
     private static final LatLng Post2 = new LatLng(48.525476, 35.033480);
     private Marker mPost1;
     private Marker mPost2;
     private GoogleMap mMap;
+    private ViewDataBinding binding;
+
+    private FusedLocationProviderClient fusedLocationProviderClient;
+
+    private static final float DEFAULT_MAP_ZOOM = 15f;
+
     private GeoApiContext geoApiContext = null;
+
+    private CallbackManager callbackManager;
+
+    private Button loginButton;
+    private EditText searchEditText;
+    private ImageView gpsImageView;
 
     public MapsActivity() {}
 /*
@@ -57,10 +82,70 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_maps);
+        binding = DataBindingUtil.setContentView(this, R.layout.activity_maps);
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
-        SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
-        mapFragment.getMapAsync(this);
+//        SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
+//        mapFragment.getMapAsync(this);
+        getLocationPermission();
+//        setContentView(R.layout.activity_maps);
+
+        init();
+        // Facebook autontification button used
+//        FacebookSdk.sdkInitialize(getApplicationContext());
+//        AppEventsLogger.activateApp(this);
+//
+////        callbackManager = CallbackManager.Factory.create();
+////
+////        loginButton = (LoginButton) findViewById(R.id.login_button);
+////        loginButton.setReadPermissions("email");
+////        // If using in a fragment
+////        loginButton.setFragment(this);
+////
+////        // Callback registration
+////        loginButton.registerCallback(callbackManager, new FacebookCallback<LoginResult>() {
+////            @Override
+////            public void onSuccess(LoginResult loginResult) {
+////                // App code
+////            }
+////
+////            @Override
+////            public void onCancel() {
+////                // App code
+////            }
+////
+////            @Override
+////            public void onError(FacebookException exception) {
+////                // App code
+////            }
+////        });
+//
+//        callbackManager = CallbackManager.Factory.create();
+//
+//        LoginManager.getInstance().registerCallback(callbackManager,
+//            new FacebookCallback<LoginResult>() {
+//                @Override
+//                public void onSuccess(LoginResult loginResult) {
+//                    // App code
+//                    Timber.e("onSuccess start");
+//                }
+//
+//                @Override
+//                public void onCancel() {
+//                    // App code
+//                    Timber.e("onCancel start");
+//                }
+//
+//                @Override
+//                public void onError(FacebookException exception) {
+//                    // App code
+//                    Timber.e("onError start %s", exception.getMessage());
+//                }
+//            });
+//
+//        AccessToken accessToken = AccessToken.getCurrentAccessToken();
+//        boolean isLoggedIn = accessToken != null && !accessToken.isExpired();
+//        Timber.e("isLoggedIn = %s", isLoggedIn);
+
     }
 
     /**
@@ -73,8 +158,31 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
      * installed Google Play services and returned to the app.
      */
 
+    private void init() {
+        searchEditText.setOnEditorActionListener((v, actionId, event) -> {
+           if (actionId == EditorInfo.IME_ACTION_SEARCH || actionId == EditorInfo.IME_ACTION_DONE || event.getAction() == event.ACTION_DOWN || event.getAction() == event.KEYCODE_ENTER) {
+                getLocate();
+           }
+            return false;
+        });
+        gpsImageView.setOnClickListener(v -> {
+            getDeviceLocation();
+        });
+        hideSoftKeyboard();
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        callbackManager.onActivityResult(requestCode, resultCode, data);
+        super.onActivityResult(requestCode, resultCode, data);
+        Timber.e("onActivityResult start");
+    }
+
     @Override
     public void onMapReady(GoogleMap googleMap) {
+        if (googleMap != null) {
+            Toast.makeText(this, "Map is ready", Toast.LENGTH_SHORT).show();
+        }
         mMap = googleMap;
 
         mPost1 = mMap.addMarker(new MarkerOptions()
@@ -87,76 +195,85 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 .title("Post2"));
         mPost2.setTag(0);
 
+        if (isLocationPermissionGranted) {
+            getDeviceLocation();
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                return;
+            }
+            mMap.setMyLocationEnabled(true);
+//            mMap.getUiSettings().setMyLocationButtonEnabled(false); //Disable UI buttons
+        }
 //        String url = getURL(mPost1.getPosition(), mPost2.getPosition(), "driving");
 
-        //Define list to get all latlng for the route
-        List<LatLng> path = new ArrayList();
-
-
-        //Execute Directions API request
-        GeoApiContext context = new GeoApiContext.Builder()
-                .apiKey("YOUR_API_KEY")
-                .build();
-        DirectionsApiRequest req = DirectionsApi.getDirections(context, "41.385064,2.173403", "40.416775,-3.70379");
-        try {
-            DirectionsResult res = req.await();
-
-            //Loop through legs and steps to get encoded polylines of each step
-            if (res.routes != null && res.routes.length > 0) {
-                DirectionsRoute route = res.routes[0];
-
-                if (route.legs !=null) {
-                    for(int i=0; i<route.legs.length; i++) {
-                        DirectionsLeg leg = route.legs[i];
-                        if (leg.steps != null) {
-                            for (int j=0; j<leg.steps.length;j++){
-                                DirectionsStep step = leg.steps[j];
-                                if (step.steps != null && step.steps.length >0) {
-                                    for (int k=0; k<step.steps.length;k++){
-                                        DirectionsStep step1 = step.steps[k];
-                                        EncodedPolyline points1 = step1.polyline;
-                                        if (points1 != null) {
-                                            //Decode polyline and add points to list of route coordinates
-                                            List<com.google.maps.model.LatLng> coords1 = points1.decodePath();
-                                            for (com.google.maps.model.LatLng coord1 : coords1) {
-                                                path.add(new LatLng(coord1.lat, coord1.lng));
-                                            }
-                                        }
-                                    }
-                                } else {
-                                    EncodedPolyline points = step.polyline;
-                                    if (points != null) {
-                                        //Decode polyline and add points to list of route coordinates
-                                        List<com.google.maps.model.LatLng> coords = points.decodePath();
-                                        for (com.google.maps.model.LatLng coord : coords) {
-                                            path.add(new LatLng(coord.lat, coord.lng));
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        } catch(Exception ex) {
-            Log.e(TAG, ex.getLocalizedMessage());
-        }
-
-        //Draw the polyline
-        if (path.size() > 0) {
-            PolylineOptions opts = new PolylineOptions().addAll(path).color(Color.BLUE).width(5);
-            mMap.addPolyline(opts);
-        }
-
-        mMap.getUiSettings().setZoomControlsEnabled(true);
-
-        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(zaragoza, 6));
+//        //Define list to get all latlng for the route
+//        List<LatLng> path = new ArrayList();
+//
+//
+//        //Execute Directions API request
+//        GeoApiContext context = new GeoApiContext.Builder()
+//                .apiKey("YOUR_API_KEY")
+//                .build();
+//        DirectionsApiRequest req = DirectionsApi.getDirections(context, "41.385064,2.173403", "40.416775,-3.70379");
+//        try {
+//            DirectionsResult res = req.await();
+//
+//            //Loop through legs and steps to get encoded polylines of each step
+//            if (res.routes != null && res.routes.length > 0) {
+//                DirectionsRoute route = res.routes[0];
+//
+//                if (route.legs !=null) {
+//                    for(int i=0; i<route.legs.length; i++) {
+//                        DirectionsLeg leg = route.legs[i];
+//                        if (leg.steps != null) {
+//                            for (int j=0; j<leg.steps.length;j++){
+//                                DirectionsStep step = leg.steps[j];
+//                                if (step.steps != null && step.steps.length >0) {
+//                                    for (int k=0; k<step.steps.length;k++){
+//                                        DirectionsStep step1 = step.steps[k];
+//                                        EncodedPolyline points1 = step1.polyline;
+//                                        if (points1 != null) {
+//                                            //Decode polyline and add points to list of route coordinates
+//                                            List<com.google.maps.model.LatLng> coords1 = points1.decodePath();
+//                                            for (com.google.maps.model.LatLng coord1 : coords1) {
+//                                                path.add(new LatLng(coord1.lat, coord1.lng));
+//                                            }
+//                                        }
+//                                    }
+//                                } else {
+//                                    EncodedPolyline points = step.polyline;
+//                                    if (points != null) {
+//                                        //Decode polyline and add points to list of route coordinates
+//                                        List<com.google.maps.model.LatLng> coords = points.decodePath();
+//                                        for (com.google.maps.model.LatLng coord : coords) {
+//                                            path.add(new LatLng(coord.lat, coord.lng));
+//                                        }
+//                                    }
+//                                }
+//                            }
+//                        }
+//                    }
+//                }
+//            }
+//        } catch(Exception ex) {
+//            Log.e(TAG, ex.getLocalizedMessage());
+//        }
+//
+//        //Draw the polyline
+//        if (path.size() > 0) {
+//            PolylineOptions opts = new PolylineOptions().addAll(path).color(Color.BLUE).width(5);
+//            mMap.addPolyline(opts);
+//        }
+//
+//        mMap.getUiSettings().setZoomControlsEnabled(true);
+//
+//        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(zaragoza, 6));
 
         // Add a marker in Sydney and move the camera
 //        LatLng sydney = new LatLng(-34, 151);
 //        mMap.addMarker(new MarkerOptions().position(sydney).title("Marker in Sydney"));
-        mMap.moveCamera(CameraUpdateFactory.newLatLng(Post1));
+        //mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(Post1, 12f));
         mMap.setOnMarkerClickListener(this);
+        init();
     }
 
     @Override
@@ -180,9 +297,99 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         return false;
     }
 
-    private void  calculateDirections(Marker marker) {
-        Timber
+    private void initMap() {
+        SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
+        mapFragment.getMapAsync(MapsActivity.this);
     }
+
+    private void getLocationPermission() {
+        String[] permissions = {Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION};
+
+        if(ContextCompat.checkSelfPermission(this.getApplicationContext(), FINE_LOCATION )== PackageManager.PERMISSION_GRANTED) {
+            if(ContextCompat.checkSelfPermission(this.getApplicationContext(), COARSE_LOCATION)== PackageManager.PERMISSION_GRANTED) {
+                isLocationPermissionGranted = true;
+                initMap();
+            } else {
+                ActivityCompat.requestPermissions(this, permissions, LOCATION_PERMISSION_REQUEST_CODE);
+            }
+        } else {
+            ActivityCompat.requestPermissions(this, permissions, LOCATION_PERMISSION_REQUEST_CODE);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        isLocationPermissionGranted = false;
+        switch (requestCode) {
+            case LOCATION_PERMISSION_REQUEST_CODE:{
+                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    for (int i = 0; i < grantResults.length; i++) {
+                        if (grantResults[i] != PackageManager.PERMISSION_GRANTED) {
+                            isLocationPermissionGranted = false;
+                            return;
+                        }
+                    }
+                    isLocationPermissionGranted = true;
+                }
+            }
+        }
+    }
+
+    private void getDeviceLocation() {
+        fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
+        try {
+            if (fusedLocationProviderClient != null) {
+                Task<Location> taskLocation = fusedLocationProviderClient.getLastLocation();
+                taskLocation.addOnCompleteListener(task -> {
+                    if (task.isSuccessful()) {
+                        Location currentLocation = (Location) task.getResult();
+                        noveCameraToDevice(new LatLng(currentLocation.getLatitude(), currentLocation.getLongitude()), DEFAULT_MAP_ZOOM, "My location");
+                    } else {
+                        Toast.makeText(MapsActivity.this, "Unable to get current location", Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
+        } catch (SecurityException e) {
+            Timber.e(TAG + ": getDeviceLocation() - %s", e.getMessage());
+        }
+    }
+
+    private void getLocate() {
+        String searchString = searchEditText.getText().toString();
+        Geocoder geocoder = new Geocoder(MapsActivity.this);
+        List<Address> list = new ArrayList<>();
+        try {
+            list = geocoder.getFromLocationName(searchString, 1);
+        } catch (IOException e) {
+            Timber.e(TAG + ": getLocate() - %s", e.getMessage());
+        }
+
+        if (list.size() > 0) {
+            Address address = list.get(0);
+            Timber.e(TAG + ": getLocate() - %s", address.toString());
+            noveCameraToDevice(new LatLng(address.getLatitude(), address.getLongitude()), DEFAULT_MAP_ZOOM, address.getAddressLine(0));
+        }
+    }
+
+    private void noveCameraToDevice(LatLng latLng, float zoom, String title) {
+        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, zoom));
+
+        if (!title.equals("My location")) {
+            MarkerOptions options = new MarkerOptions().position(latLng)
+                    .title(title);
+            mMap.addMarker(options);
+        }
+        hideSoftKeyboard();
+    }
+
+    private void hideSoftKeyboard() {
+        this.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
+    }
+
+    //    private void  calculateDirections(Marker marker) {
+//        Timber
+//    }
 
 //    private String getURL(LatLng start, LatLng end, String directionMode) {
 //        String string1 = "origin" + start.latitude + "," + start.longitude;
@@ -192,7 +399,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 //        String output = "json";
 //        return "https://maps.googleapis.com/maps/api/directions/" + output + "?" + parametes + "&key=" + getString(R.string.google_maps_key);
 //    }
-
+/**/
 //    @Override
 //    public void onMapReady(GoogleMap googleMap) {
 //        mMap = googleMap;
