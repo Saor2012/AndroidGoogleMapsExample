@@ -25,7 +25,6 @@ public class App extends Application {
     }
 
     private ILocalDB provideEntityDataBase() {
-
         LocalDataBase database = Room.databaseBuilder(this, LocalDataBase.class, Constants.NAME_DAO)
                 .allowMainThreadQueries()
                 .build();

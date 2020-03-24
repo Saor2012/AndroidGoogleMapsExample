@@ -7,15 +7,16 @@ import androidx.core.content.ContextCompat;
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
-import android.view.View;
 import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 import android.widget.Toast;
 
 import com.example.androidgooglemapsexample.R;
+import com.example.androidgooglemapsexample.data.EntityDB;
 import com.example.androidgooglemapsexample.databinding.ActivityMapsBinding;
 import com.facebook.CallbackManager;
 import com.google.android.gms.location.FusedLocationProviderClient;
@@ -27,8 +28,16 @@ import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.PolylineOptions;
 import com.google.android.gms.tasks.Task;
+import com.google.maps.DirectionsApi;
+import com.google.maps.DirectionsApiRequest;
 import com.google.maps.GeoApiContext;
+import com.google.maps.model.DirectionsLeg;
+import com.google.maps.model.DirectionsResult;
+import com.google.maps.model.DirectionsRoute;
+import com.google.maps.model.DirectionsStep;
+import com.google.maps.model.EncodedPolyline;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -52,8 +61,11 @@ public class MapsActivity extends BaseActivity<ActivityMapsBinding> implements O
     private static final String TAG = "MapsActivity";
     private static final LatLng Post1 = new LatLng(48.527657,35.015481);
     private static final LatLng Post2 = new LatLng(48.525476, 35.033480);
-    private Marker mPost1;
-    private Marker mPost2;
+    private LatLng LastDiviceLocation = null;
+    private List<Marker> mListPosts;
+    private List<EntityDB> entityDBList;
+//    private Marker mPost1;
+//    private Marker mPost2;
     private GoogleMap mMap;
 
     private FusedLocationProviderClient fusedLocationProviderClient = null;
@@ -157,6 +169,7 @@ public class MapsActivity extends BaseActivity<ActivityMapsBinding> implements O
     @Override
     protected void onStartView() {
         presenter.startView(this);
+        presenter.query();
     }
 
     @Override
@@ -199,6 +212,10 @@ public class MapsActivity extends BaseActivity<ActivityMapsBinding> implements O
                 getLocate();
             }
         });
+        getBinding().icRoute.setOnClickListener(v -> {
+//            getRoute();
+        });
+
         hideSoftKeyboard();
     }
 
@@ -212,21 +229,20 @@ public class MapsActivity extends BaseActivity<ActivityMapsBinding> implements O
     @Override
     public void onMapReady(GoogleMap googleMap) {
         if (googleMap == null) {
-            Toast.makeText(this, "Map is null", Toast.LENGTH_SHORT).show();
+            toast("Map is null");
             return;
         }
         mMap = googleMap;
 
-        mPost1 = mMap.addMarker(new MarkerOptions()
-                .position(Post1)
-                .title("Post1"));
-        mPost1.setTag(0);
-
-        mPost2 = mMap.addMarker(new MarkerOptions()
-                .position(Post2)
-                .title("Post2"));
-        mPost2.setTag(0);
-
+//        mPost1 = mMap.addMarker(new MarkerOptions()
+//                .position(Post1)
+//                .title("Post1"));
+//        mPost1.setTag(0);
+//
+//        mPost2 = mMap.addMarker(new MarkerOptions()
+//                .position(Post2)
+//                .title("Post2"));
+//        mPost2.setTag(0);
         if (isLocationPermissionGranted) {
             getDeviceLocation();
             if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -236,69 +252,8 @@ public class MapsActivity extends BaseActivity<ActivityMapsBinding> implements O
             mMap.getUiSettings().setMyLocationButtonEnabled(false); //Disable UI buttons
         }
 //        String url = getURL(mPost1.getPosition(), mPost2.getPosition(), "driving");
-
-//        //Define list to get all latlng for the route
-//        List<LatLng> path = new ArrayList();
+//        new FetchURL(MapsActivity.this).exucute(url, "driving");
 //
-//
-//        //Execute Directions API request
-//        GeoApiContext context = new GeoApiContext.Builder()
-//                .apiKey("YOUR_API_KEY")
-//                .build();
-//        DirectionsApiRequest req = DirectionsApi.getDirections(context, "41.385064,2.173403", "40.416775,-3.70379");
-//        try {
-//            DirectionsResult res = req.await();
-//
-//            //Loop through legs and steps to get encoded polylines of each step
-//            if (res.routes != null && res.routes.length > 0) {
-//                DirectionsRoute route = res.routes[0];
-//
-//                if (route.legs !=null) {
-//                    for(int i=0; i<route.legs.length; i++) {
-//                        DirectionsLeg leg = route.legs[i];
-//                        if (leg.steps != null) {
-//                            for (int j=0; j<leg.steps.length;j++){
-//                                DirectionsStep step = leg.steps[j];
-//                                if (step.steps != null && step.steps.length >0) {
-//                                    for (int k=0; k<step.steps.length;k++){
-//                                        DirectionsStep step1 = step.steps[k];
-//                                        EncodedPolyline points1 = step1.polyline;
-//                                        if (points1 != null) {
-//                                            //Decode polyline and add points to list of route coordinates
-//                                            List<com.google.maps.model.LatLng> coords1 = points1.decodePath();
-//                                            for (com.google.maps.model.LatLng coord1 : coords1) {
-//                                                path.add(new LatLng(coord1.lat, coord1.lng));
-//                                            }
-//                                        }
-//                                    }
-//                                } else {
-//                                    EncodedPolyline points = step.polyline;
-//                                    if (points != null) {
-//                                        //Decode polyline and add points to list of route coordinates
-//                                        List<com.google.maps.model.LatLng> coords = points.decodePath();
-//                                        for (com.google.maps.model.LatLng coord : coords) {
-//                                            path.add(new LatLng(coord.lat, coord.lng));
-//                                        }
-//                                    }
-//                                }
-//                            }
-//                        }
-//                    }
-//                }
-//            }
-//        } catch(Exception ex) {
-//            Log.e(TAG, ex.getLocalizedMessage());
-//        }
-//
-//        //Draw the polyline
-//        if (path.size() > 0) {
-//            PolylineOptions opts = new PolylineOptions().addAll(path).color(Color.BLUE).width(5);
-//            mMap.addPolyline(opts);
-//        }
-//
-//        mMap.getUiSettings().setZoomControlsEnabled(true);
-//
-//        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(zaragoza, 6));
 
         // Add a marker in Sydney and move the camera
 //        LatLng sydney = new LatLng(-34, 151);
@@ -306,6 +261,11 @@ public class MapsActivity extends BaseActivity<ActivityMapsBinding> implements O
         //mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(Post1, 12f));
         mMap.setOnMarkerClickListener(this);
         init();
+        if (entityDBList != null) {
+            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(entityDBList.get(entityDBList.size() - 1).getLatitude(), entityDBList.get(entityDBList.size() - 1).getLongitude()), DEFAULT_MAP_ZOOM));
+        } else {
+            Timber.tag(TAG).e("Dao entityDBList of posts is null");
+        }
     }
 
     @Override
@@ -317,9 +277,7 @@ public class MapsActivity extends BaseActivity<ActivityMapsBinding> implements O
         if (clickCount != null) {
             clickCount = clickCount + 1;
             marker.setTag(clickCount);
-            Toast.makeText(this,
-                marker.getTitle() + " has been clicked " + clickCount + " times.",
-                Toast.LENGTH_SHORT).show();
+            toast(marker.getTitle() + " has been clicked " + clickCount + " times.");
         }
 
         // Return false to indicate that we have not consumed the event and that we wish
@@ -332,6 +290,11 @@ public class MapsActivity extends BaseActivity<ActivityMapsBinding> implements O
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
         if (mapFragment != null){
             mapFragment.getMapAsync(MapsActivity.this);
+            if (geoApiContext == null) {
+               geoApiContext = new GeoApiContext.Builder()
+                    .apiKey(getString(R.string.google_maps_key))
+                    .build();
+            }
         } else {
             Timber.tag(TAG).e(": initMap() - map fragment is null");
         }
@@ -378,7 +341,8 @@ public class MapsActivity extends BaseActivity<ActivityMapsBinding> implements O
                 if (task.isSuccessful()) {
                     Location currentLocation = (Location) task.getResult();
                     if (currentLocation != null) {
-                        noveCameraToDevice(new LatLng(currentLocation.getLatitude(), currentLocation.getLongitude()), DEFAULT_MAP_ZOOM, "My location");
+                        LastDiviceLocation = new LatLng(currentLocation.getLatitude(), currentLocation.getLongitude());
+                        noveCameraToDevice(LastDiviceLocation, DEFAULT_MAP_ZOOM, "My location");
                     } else {
                         Timber.tag(TAG).e(": getDeviceLocation() - device location is null");
                     }
@@ -389,6 +353,68 @@ public class MapsActivity extends BaseActivity<ActivityMapsBinding> implements O
         } catch (SecurityException e) {
             Timber.tag(TAG).e(": getDeviceLocation() - %s", e.getMessage());
         }
+    }
+
+    private void getRoute() {
+        //Define entityDBList to get all latlng for the route
+        List<LatLng> path = new ArrayList();
+
+        //Execute Directions API request
+        DirectionsApiRequest req = DirectionsApi.getDirections(geoApiContext, Post1.toString(), Post2.toString());
+        try {
+            DirectionsResult res = req.await();
+
+            //Loop through legs and steps to get encoded polylines of each step
+            if (res.routes != null && res.routes.length > 0) {
+                DirectionsRoute route = res.routes[0];
+
+                if (route.legs !=null) {
+                    for(int i=0; i<route.legs.length; i++) {
+                        DirectionsLeg leg = route.legs[i];
+                        if (leg.steps != null) {
+                            for (int j=0; j<leg.steps.length;j++){
+                                DirectionsStep step = leg.steps[j];
+                                if (step.steps != null && step.steps.length >0) {
+                                    for (int k=0; k<step.steps.length;k++){
+                                        DirectionsStep step1 = step.steps[k];
+                                        EncodedPolyline points1 = step1.polyline;
+                                        if (points1 != null) {
+                                            //Decode polyline and add points to entityDBList of route coordinates
+                                            List<com.google.maps.model.LatLng> coords1 = points1.decodePath();
+                                            for (com.google.maps.model.LatLng coord1 : coords1) {
+                                                path.add(new LatLng(coord1.lat, coord1.lng));
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    EncodedPolyline points = step.polyline;
+                                    if (points != null) {
+                                        //Decode polyline and add points to entityDBList of route coordinates
+                                        List<com.google.maps.model.LatLng> coords = points.decodePath();
+                                        for (com.google.maps.model.LatLng coord : coords) {
+                                            path.add(new LatLng(coord.lat, coord.lng));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch(Exception ex) {
+            Timber.tag(TAG).e(": calculateDirections() - %s", ex.getMessage());
+            Timber.tag(TAG).e(": calculateDirections() - %s", ex.getLocalizedMessage());
+        }
+
+        //Draw the polyline
+        if (path.size() > 0) {
+            PolylineOptions opts = new PolylineOptions().addAll(path).color(Color.BLUE).width(5);
+            mMap.addPolyline(opts);
+        }
+
+        mMap.getUiSettings().setZoomControlsEnabled(true);
+
+        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(Post1, 6));
     }
 
     private void getLocate() {
@@ -423,8 +449,81 @@ public class MapsActivity extends BaseActivity<ActivityMapsBinding> implements O
         this.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
     }
 
-    //    private void  calculateDirections(Marker marker) {
-//        Timber
+    @Override
+    public void handleGPS() {
+        if (mMap != null) {
+            Timber.e("On get device location");
+            getDeviceLocation();
+        } else {
+            toast("Map is null");
+        }
+    }
+
+    @Override
+    public void handleSearch() {
+        if (mMap != null) {
+            if (!getBinding().editTextSearch.getText().toString().equals("") || !getBinding().editTextSearch.getText().toString().equals("My location")) {
+                Timber.e("On search");
+                getLocate();
+            }
+        } else {
+            toast("Map is null");
+        }
+    }
+
+    @Override
+    public void handleRoute() {
+        if (mMap != null) {
+            Timber.e("On route");
+            //getRoute();
+        } else {
+            toast("Map is null");
+        }
+    }
+
+    @Override
+    public void getList(List<EntityDB> list) {
+        entityDBList = list;
+        if (mListPosts == null) {
+            mListPosts = new ArrayList<Marker>();
+        }
+        if (entityDBList != null && entityDBList.size() > 0) {
+            entityDBList.forEach(post -> {
+                mListPosts.add(mMap.addMarker(new MarkerOptions()
+                        .position(new LatLng(post.getLatitude(), post.getLongitude()))
+                        .title(post.getTitle())));
+            });
+
+            if (mListPosts.size() > 0) {
+                mListPosts.forEach(post -> {
+                    post.setTag(0);
+                });
+            }
+        }
+    }
+
+//    private void  calculateDirections(Marker marker) {
+//        LatLng destination = new LatLng(marker.getPosition().latitude, marker.getPosition().longitude);
+//
+//        DirectionsApiRequest directionsApiRequest = new DirectionsApiRequest(geoApiContext);
+//        directionsApiRequest.alternatives(true);
+//        directionsApiRequest.origin(String.valueOf(new LatLng(LastDiviceLocation.latitude, LastDiviceLocation.longitude)));
+//        Timber.tag(TAG).e(": calculateDirections() - destination %s", directionsApiRequest.toString());
+//
+//        directionsApiRequest.destination(String.valueOf(destination)).setCallback(new PendingResult.Callback<DirectionsResult>() {
+//            @Override
+//            public void onResult(DirectionsResult result) {
+//                Timber.tag(TAG).e(": calculateDirections(): route %s", result.routes[0].toString());
+//                Timber.tag(TAG).e(": calculateDirections(): duration %s", result.routes[0].legs[0].duration);
+//                Timber.tag(TAG).e(": calculateDirections(): distance %s", result.routes[0].legs[0].distance);
+//                Timber.tag(TAG).e(": calculateDirections(): geocodeWayPoints %s", result.geocodedWaypoints[0].toString());
+//            }
+//
+//            @Override
+//            public void onFailure(Throwable e) {
+//                Timber.tag(TAG).e(": calculateDirections() - %s", e.getMessage());
+//            }
+//        });
 //    }
 
 //    private String getURL(LatLng start, LatLng end, String directionMode) {
@@ -433,6 +532,7 @@ public class MapsActivity extends BaseActivity<ActivityMapsBinding> implements O
 //        String mode = "mode=" + directionMode;
 //        String parametes = string1 + "&" + string2 + "&" + mode;
 //        String output = "json";
+//
 //        return "https://maps.googleapis.com/maps/api/directions/" + output + "?" + parametes + "&key=" + getString(R.string.google_maps_key);
 //    }
 /**/
@@ -448,7 +548,7 @@ public class MapsActivity extends BaseActivity<ActivityMapsBinding> implements O
 //
 //        LatLng zaragoza = new LatLng(41.648823,-0.889085);
 //
-//        //Define list to get all latlng for the route
+//        //Define entityDBList to get all latlng for the route
 //        List<LatLng> path = new ArrayList();
 //
 //
@@ -475,7 +575,7 @@ public class MapsActivity extends BaseActivity<ActivityMapsBinding> implements O
 //                                        DirectionsStep step1 = step.steps[k];
 //                                        EncodedPolyline points1 = step1.polyline;
 //                                        if (points1 != null) {
-//                                            //Decode polyline and add points to list of route coordinates
+//                                            //Decode polyline and add points to entityDBList of route coordinates
 //                                            List<com.google.maps.model.LatLng> coords1 = points1.decodePath();
 //                                            for (com.google.maps.model.LatLng coord1 : coords1) {
 //                                                path.add(new LatLng(coord1.lat, coord1.lng));
@@ -485,7 +585,7 @@ public class MapsActivity extends BaseActivity<ActivityMapsBinding> implements O
 //                                } else {
 //                                    EncodedPolyline points = step.polyline;
 //                                    if (points != null) {
-//                                        //Decode polyline and add points to list of route coordinates
+//                                        //Decode polyline and add points to entityDBList of route coordinates
 //                                        List<com.google.maps.model.LatLng> coords = points.decodePath();
 //                                        for (com.google.maps.model.LatLng coord : coords) {
 //                                            path.add(new LatLng(coord.lat, coord.lng));
